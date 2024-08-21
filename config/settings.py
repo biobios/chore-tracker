@@ -23,17 +23,59 @@ from google.cloud import secretmanager
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# 環境変数を読み込む
+env = environ.Env(DEBUG=(bool, False))
+env_file = os.path.join(BASE_DIR, '.env')
+
+if os.path.isfile(env_file):
+    env.read_env(env_file)
+
+elif os.getenv('GOOGLE_CLOUD_PROJECT', None):
+    # シークレットマネージャーから環境変数を取得
+    project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
+
+    client = secretmanager.SecretManagerServiceClient()
+    settings_name = os.getenv('SETTINGS_NAME', 'django_settings')
+    name = f'projects/{project_id}/secrets/{settings_name}/versions/latest'
+    response = client.access_secret_version(name=name)
+    payload = response.payload.data.decode('UTF-8')
+
+    env.read_env(io.StringIO(payload))
+
+else:
+    raise Exception('No local .env file or GOOGLE_CLOUD_PROJECT environment variable found')
+
+is_development = False
+
+if os.getenv('GOOGLE_CLOUD_PROJECT', None):
+    is_development = False
+
+else:
+    is_development = True
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-@wj=3bpy5!10xc5hh3o4^d2+^*-a%5zq*6em&zb31t!2x^&r8_'
+SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = []
+APPENGINE_URL = env('APPENGINE_URL', default=None)
+
+if APPENGINE_URL:
+
+    if not urlparse(APPENGINE_URL).scheme:
+        APPENGINE_URL = f'https://{APPENGINE_URL}'
+
+    ALLOWED_HOSTS = [urlparse(APPENGINE_URL).netloc]
+    CSRF_TRUSTED_ORIGINS = [APPENGINE_URL]
+    SECURE_SSL_REDIRECT = True
+
+else:
+    ALLOWED_HOSTS = ['*']
+
 
 
 # Application definition
@@ -91,12 +133,20 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': env.db()
 }
 
+if os.getenv('USE_CLOUD_SQL_AUTH_PROXY', None):
+    DATABASES['default']['HOST'] = '127.0.0.1'
+    DATABASES['default']['PORT'] = '3306'
+
+elif is_development:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
