@@ -46,6 +46,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'apps.users.apps.UsersConfig',
+    'apps.auth.apps.AuthConfig',
+]
+
+AUTH_USER_MODEL = 'users.ChoreTrackerUser'
+
+AUTHENTICATION_BACKENDS = [
+    'apps.auth.backends.EmailAuthBackend',
+    'apps.auth.backends.UsernameAuthBackend',
 ]
 
 MIDDLEWARE = [
