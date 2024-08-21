@@ -1,0 +1,13 @@
+runtime: python312
+
+entrypoint: gunicorn -b :$PORT config.wsgi:application
+
+handlers:
+  - url: /static
+    static_dir: staticfiles/
+  - url: /.*
+    script: auto
+    secure: always
+  
+env_variables:
+  APPENGINE_URL: 'chore-tracker-433115.an.r.appspot.com'
